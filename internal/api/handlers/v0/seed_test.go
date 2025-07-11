@@ -1,4 +1,4 @@
-package v0
+package v0_test
 
 import (
 	"encoding/json"
@@ -6,33 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	v0 "github.com/modelcontextprotocol/registry/internal/api/handlers/v0"
 	"github.com/modelcontextprotocol/registry/internal/model"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
-
-// MockRegistryService is a mock implementation of RegistryService for testing
-type MockRegistryService struct {
-	mock.Mock
-}
-
-func (m *MockRegistryService) List(cursor string, limit int) ([]model.Server, string, error) {
-	args := m.Called(cursor, limit)
-	return args.Get(0).([]model.Server), args.String(1), args.Error(2)
-}
-
-func (m *MockRegistryService) GetByID(id string) (*model.ServerDetail, error) {
-	args := m.Called(id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*model.ServerDetail), args.Error(1)
-}
-
-func (m *MockRegistryService) Publish(serverDetail *model.ServerDetail) error {
-	args := m.Called(serverDetail)
-	return args.Error(0)
-}
 
 func TestSeedHandler(t *testing.T) {
 	t.Run("successful seed export", func(t *testing.T) {
@@ -68,10 +45,10 @@ func TestSeedHandler(t *testing.T) {
 			},
 		}
 
-		mockRegistry.On("List", "", 10000).Return(servers, "", nil)
-		mockRegistry.On("GetByID", "test-id-1").Return(serverDetail, nil)
+		mockRegistry.Mock.On("List", "", 10000).Return(servers, "", nil)
+		mockRegistry.Mock.On("GetByID", "test-id-1").Return(serverDetail, nil)
 
-		handler := SeedHandler(mockRegistry)
+		handler := v0.SeedHandler(mockRegistry)
 
 		req, err := http.NewRequest("GET", "/v0/seed.json", nil)
 		assert.NoError(t, err)
@@ -89,12 +66,12 @@ func TestSeedHandler(t *testing.T) {
 		assert.Equal(t, "test-server-1", response[0].Name)
 		assert.Len(t, response[0].Packages, 1)
 
-		mockRegistry.AssertExpectations(t)
+		mockRegistry.Mock.AssertExpectations(t)
 	})
 
 	t.Run("method not allowed", func(t *testing.T) {
 		mockRegistry := new(MockRegistryService)
-		handler := SeedHandler(mockRegistry)
+		handler := v0.SeedHandler(mockRegistry)
 
 		req, err := http.NewRequest("POST", "/v0/seed.json", nil)
 		assert.NoError(t, err)
@@ -108,9 +85,9 @@ func TestSeedHandler(t *testing.T) {
 
 	t.Run("registry service error", func(t *testing.T) {
 		mockRegistry := new(MockRegistryService)
-		mockRegistry.On("List", "", 10000).Return([]model.Server{}, "", assert.AnError)
+		mockRegistry.Mock.On("List", "", 10000).Return([]model.Server{}, "", assert.AnError)
 
-		handler := SeedHandler(mockRegistry)
+		handler := v0.SeedHandler(mockRegistry)
 
 		req, err := http.NewRequest("GET", "/v0/seed.json", nil)
 		assert.NoError(t, err)
@@ -119,6 +96,6 @@ func TestSeedHandler(t *testing.T) {
 		handler(rr, req)
 
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
-		mockRegistry.AssertExpectations(t)
+		mockRegistry.Mock.AssertExpectations(t)
 	})
 }
